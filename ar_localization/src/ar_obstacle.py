@@ -174,7 +174,7 @@ class ARObstacleController:
 # TODO: calculate errors from desired pose/current pose
 ###########################################################################################################################
 
-        x_error = None
+        x_error = None 
         y_error = None
         z_error = None
         yaw_error = None

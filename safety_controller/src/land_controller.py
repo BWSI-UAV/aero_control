@@ -27,10 +27,10 @@ class LandController:
 		rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self.pose_cb)
 		rospy.Subscriber("/mavros/setpoint_velocity/cmd_vel", TwistStamped, self.vel_cb)
 
+		self.state = None
 		rospy.wait_for_service('/mavros/cmd/land')
 		self.land_srv = rospy.ServiceProxy('/mavros/cmd/land', CommandTOL)
 
-		self.state = None
 
 	def state_cb(self,msg):
 		self.state = msg
@@ -38,7 +38,7 @@ class LandController:
 	def pose_cb(self,msg):
 		height = msg.pose.position.z
 
-		if height > _MAX_HEIGHT and self.state != None and self.state.mode == "OFFBOARD": 
+		if height > _MAX_HEIGHT and self.state is not None and self.state.mode == "OFFBOARD": 
 			rospy.logerr("landing. too high!")
 			self.land_srv(0,0,0,0,0)
 
@@ -47,11 +47,10 @@ class LandController:
 
 		vel_mag = np.linalg.norm(linear_vel)
 
-		if vel_mag > _MAX_VEL and self.state != None and self.state.mode == "OFFBOARD":
+		if vel_mag > _MAX_VEL and self.state is not None and self.state.mode == "OFFBOARD":
 			rospy.logerr("landing. too much total vel!")
 			self.land_srv(0,0,0,0,0)
-		
-		if linear_vel[2] > _MAX_Z_VEL and self.state != None and self.state.mode == "OFFBOARD":
+		if linear_vel[2] > _MAX_Z_VEL and self.state is not None and self.state.mode == "OFFBOARD":
 			rospy.logerr("landing. too much z vel")
 			self.land_srv(0,0,0,0,0)
 

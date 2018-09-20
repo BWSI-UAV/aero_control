@@ -1,0 +1,7 @@
+<!-- Sample launch file for running talker and listener -->
+<launch>
+
+	<node name="talker" pkg="aero_control" type="simple_talker.py"/>
+    <!--- TODO: create listener node. Note: it is very similar to the talker definition but you also need to include the following command in order to ouput print statements to the terminal: output="screen"--->
+
+</launch>

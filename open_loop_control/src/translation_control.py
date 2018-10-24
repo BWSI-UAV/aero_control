@@ -223,12 +223,8 @@ class TranslationController:
         Encode this in the linear portion of the Twist message and assign to the member variable
         self.vel_setpoint_bu_lenu__lenu     
         '''
-        # raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
-        velsp_bu_lenu__lenu = get_lenu_velocity(self.q_bu_lenu, velsp__fin, fin, self.static_transforms)
-        self.vel_setpoint_bu_lenu__lenu = Twist()
-        self.vel_setpoint_bu_lenu__lenu.linear.x = velsp_bu_lenu__lenu[0]
-        self.vel_setpoint_bu_lenu__lenu.linear.y = velsp_bu_lenu__lenu[1]
-        self.vel_setpoint_bu_lenu__lenu.linear.z = velsp_bu_lenu__lenu[2]
+        raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
+
         '''TODO-END '''
 
         # Publish command velocites for timedelta seconds

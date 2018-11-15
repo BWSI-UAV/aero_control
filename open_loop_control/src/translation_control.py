@@ -19,9 +19,9 @@ from common import coordinate_transforms
 #############
 # CONSTANTS #
 #############
-FIN = 'bu' # Reference frame commands are given in
-RATE = 10 # (Hz) rate for rospy.rate
-MAX_SPEED = 1 # (m)
+_RATE = 10 # (Hz) rate for rospy.rate
+_MAX_SPEED = 1 # (m/s)
+_MAX_CLIMB_RATE = 0.5 # m/s 
 
 #########################
 # COORDINATE TRANSFORMS #
@@ -36,9 +36,11 @@ class TranslationController:
     """ Controls drone with purely translaitonal motion, not rotations
     """
 
-    def __init__(self):
+    def __init__(self, control_reference_frame='bu'):
         # Create node with name 'controller'
         rospy.init_node('translation_controller')
+
+        self.control_reference_frame=control_reference_frame
 
         # A subscriber to the topic '/mavros/local_position/pose. self.pos_sub_cb is called when a message of type 'PoseStamped' is recieved 
         self.pos_sub = rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.pos_sub_cb)
@@ -58,7 +60,7 @@ class TranslationController:
         self.vz = 0
 
         # Publishing rate
-        self.rate = rospy.Rate(RATE)
+        self.rate = rospy.Rate(_RATE)
 
         # Boolean used to indicate if the streaming thread should be stopped
         self.stopped = False
@@ -95,8 +97,8 @@ class TranslationController:
         """
         Start thread to stream velocity commands.
         """
-        self.offboard_point_streaming_thread = Thread(target=self.stream)
-        self.offboard_point_streaming_thread.start()
+        self.offboard_command_streaming_thread = Thread(target=self.stream_offboard_velocity_setpoints)
+        self.offboard_command_streaming_thread.start()
 
     def stop(self):
         """
@@ -104,11 +106,11 @@ class TranslationController:
         """
         self.stopped = True
         try:
-            self.offboard_point_streaming_thread.join()
+            self.offboard_command_streaming_thread.join()
         except AttributeError:
             pass
 
-    def stream(self):
+    def stream_offboard_velocity_setpoints(self):
         """
         Continually publishes Twist commands in the local lenu reference frame. The values of the 
         Twist command are set in self.vx, self.vy, self.vz and self.wx, self.wy, self.wz.
@@ -134,10 +136,19 @@ class TranslationController:
             self.vel_setpoint_bu_lenu__lenu     
             '''
             raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
-            # Set linear velocity (convert command velocity from FIN to lenu)
+            # Set linear velocity (convert command velocity from control_reference_frame to lenu)
+            '''TODO-END '''
+
+            # enforce safe velocity limits
+            if _MAX_SPEED < 0.0 or _MAX_CLIMB_RATE < 0.0:
+                raise Exception("_MAX_SPEED and _MAX_CLIMB_RATE must be positive")
+            velsp__lenu.linear.x = min(max(vx,-_MAX_SPEED), _MAX_SPEED)
+            velsp__lenu.linear.y = min(max(vy,-_MAX_SPEED), _MAX_SPEED)
+            velsp__lenu.linear.z = min(max(vz,-_MAX_CLIMB_RATE), _MAX_CLIMB_RATE)
 
             # Publish setpoint velocity
             self.velocity_pub.publish(velsp__lenu)
+
             # Publish velocity at the specified rate
             self.rate.sleep()
 
@@ -174,8 +185,8 @@ class TranslationController:
                 - displacement = (dx, dy, dz) (m)
                 - speed = (m/s), mush be positive
         """
-        # Clip speed at MAX_SPEED
-        speed = min(speed, MAX_SPEED)
+        # Clip speed at _MAX_SPEED
+        speed = min(speed, _MAX_SPEED)
         # Raise error if speed is 0 or not positive
         if speed <= 0:
             raise ValueError
@@ -213,12 +224,15 @@ class TranslationController:
 if __name__ == "__main__":
 
     # Create Controller instance
-    controller = TranslationController()
+    cframe = 'bu' # Reference frame commands are given in
+    controller = TranslationController(control_reference_frame=cframe)
     # Start streaming setpoint velocites
     controller.start()
     controller.wait()
 
     # Execute maneuver
+    # TODO: call controller.translate with a 3-tuple and scalar, positive speed. 
+    # 3-tuple is to total change in position desired
     speed = .3
     controller.translate((0.5,0,0), speed)
     controller.translate((0,-0.5,0), speed)

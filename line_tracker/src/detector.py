@@ -74,32 +74,33 @@ class LineDetector:
             (vx, vy) is a vector pointing in the direction of the line. Both values are given
             in downward camera pixel coordinates. Returns None if no line is found
         """
+
+        '''TODO-START: FILL IN CODE HERE '''
+        raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
+
         # Get a colored copy of the image. This will be used solely to provide an annotated version
         # of the image for debuging purposes
-        color = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        
 
         # Threshold the image
-        mask = cv2.inRange(image, LOW, HI)
-        mask = cv2.dilate(mask, KERNEL)
+        
 
         # Find contours in the masked image
-        _, contours, _ = cv2.findContours(mask, mode=cv2.RETR_LIST, method=cv2.CHAIN_APPROX_SIMPLE)
+        
         
         if len(contours) > 0:
             # We will consider the countour with the most area to be our line
-            countour = max(contours, key=cv2.contourArea)
+            
             
             # Fit a rectangle around the max countour (the smallest area rectangle that fits the entire countour)
-            rectangle = cv2.minAreaRect(countour)
+            
+
             # Get the hight and width of the rectangle. If neither value in longer than LENGTH_THRESH, we
             # will not consider the countour to be a line
-            width, hight = rectangle[1]
-            if width < LENGTH_THRESH and hight < LENGTH_THRESH:
-                return None
+            
 
             # Fit a line to the max countour. This will be our line. Return values are length 1 numpy arrays
-            vx, vy, x, y = cv2.fitLine(countour, distType=cv2.DIST_L2, param=0, reps=0.01, aeps=0.01)
-            x, y, vx, vy = x[0], y[0], vx[0], vy[0]
+            
             
             # Publish a copy of the image annotated with the detected line
             if DISPLAY:
@@ -121,6 +122,8 @@ class LineDetector:
                 self.detector_image_pub.publish(color_msg)
 
             return x, y, vx, vy
+
+        '''TODO-END '''
 
         # Publish image even if no line is detected
         if DISPLAY:

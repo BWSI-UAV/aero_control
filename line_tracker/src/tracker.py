@@ -62,8 +62,8 @@ class LineController:
         # A subscriber to the topic '/mavros/state'. self.state_sub_cb is called when a message of type 'State' is recieved
         self.state_sub = rospy.Subscriber("/mavros/state", State, self.state_sub_cb)
         # State of the drone. 
-	# 	self.state.mode = flight mode (e.g. 'OFFBOARD', 'POSCTL', etc), 
-	# 	self.state.armed = are motors armed (True or False), etc.
+        #   self.state.mode = flight mode (e.g. 'OFFBOARD', 'POSCTL', etc), 
+        #   self.state.armed = are motors armed (True or False), etc.
         self.mode = State().mode
 
         # A subscriber to the topic '/line/param'. self.line_sub_cb is called when a message of type 'Line' is recieved 
@@ -132,16 +132,16 @@ class LineController:
     def line_sub_cb(self, param):
         """
         Callback function which is called when a new message of type Line is recieved by self.line_sub.
-	    Notes:
-		- This is the function that maps a detected line into a velocity 
-		command
+        Notes:
+        - This is the function that maps a detected line into a velocity 
+        command
             
             Args:
                 - param: parameters that define the center and direction of detected line
         """
 
-	'''TODO-START: FILL IN CODE HERE '''
-	raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
+        '''TODO-START: FILL IN CODE HERE '''
+        raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
 
         # Find the closest point on the line to the center of the image
         # T is the unit vector tangent to the line pointing in the positive x direction 
@@ -173,23 +173,23 @@ class LineController:
         # Set angular velocites based on error between forward pointing vector and tangent vector
         
 
-	'''TODO-END '''
+        '''TODO-END '''
 
 
-	### DO NOT MODIFY ###
-	
-	# publish tracker commands to an image that can be visualized on
-	# a camera feed
+        ### DO NOT MODIFY ###
+    
+        # publish tracker commands to an image that can be visualized on
+        # a camera feed
 
         if DISPLAY:
             image = self.image.copy()
             # Draw circle at closest 
             cv2.circle(image, (int(closest[0]), int(closest[1])), 5, (255,128,255), -1)
-	    # Get unit error vector
+            # Get unit error vector
             unit_error = error/np.linalg.norm(error)
-	    # Draw line from CENTER to target
-	    cv2.line(image, (int(CENTER[0]), int(CENTER[1])), (int(target[0]), int(target[1])), (255, 0, 0), 2)
-	    # Convert color to a ROS Image message
+            # Draw line from CENTER to target
+            cv2.line(image, (int(CENTER[0]), int(CENTER[1])), (int(target[0]), int(target[1])), (255, 0, 0), 2)
+            # Convert color to a ROS Image message
             image_msg = self.bridge.cv2_to_imgmsg(image, "rgb8")
             # Publish annotated image
             self.tracker_image_pub.publish(image_msg)

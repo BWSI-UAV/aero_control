@@ -1,3 +1,0 @@
-float32 max_yaw_speed
-float32 max_forward_speed
-float32 max_translate_speed

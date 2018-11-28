@@ -1,1 +1,0 @@
-All custom messages should go in this directory. Make sure to add them to CMakeLists.txt 

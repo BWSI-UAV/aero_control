@@ -24,14 +24,15 @@ from common import coordinate_transforms
 #############
 _RATE = 10 # (Hz) rate for rospy.rate
 _MAX_SPEED = 1 # (m/s)
-_MAX_CLIMB_RATE = 0.5 # m/s 
+_MAX_CLIMB_RATE = 0.5 # m/s
+_MAX_ROTATION_RATE = 0.5 # rad/s 
 IMAGE_HEIGHT = 128
 IMAGE_WIDTH = 128
 CENTER = np.array([IMAGE_WIDTH//2, IMAGE_HEIGHT//2]) # Center of the image frame. We will treat this as the center of mass of the drone
 EXTEND = 64 # Number of pixels forward to extrapolate the line
-P_X = .005 
-P_Y = .005
-P_Z_W = 2
+KP_X = .005 
+KP_Y = .005
+KP_Z_W = 2
 DISPLAY = True
 
 #########################
@@ -44,12 +45,14 @@ coord_transforms = coordinate_transforms.CoordTransforms()
 # CONTROLLER #
 ##############
 class LineController:
+    '''
+    Note: LineController assumes a downward camera reference frame, thus there is
+        no configurable input parameter for the reference frame
+    '''
 
-    def __init__(self, control_reference_frame='dc'):
+    def __init__(self):
         # Create node with name 'tracker'
         rospy.init_node('tracker')
-
-	self.control_reference_frame=control_reference_frame
 
         # A subscriber to the topic '/mavros/local_position/pose. self.pos_sub_cb is called when a message of type 'PoseStamped' is recieved 
         self.pos_sub = rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.pos_sub_cb)
@@ -75,10 +78,14 @@ class LineController:
 
         # A publisher which will publish the desired linear and anglar velocity to the topic '/setpoint_velocity/cmd_vel_unstamped'
         self.velocity_pub = rospy.Publisher('/mavros/setpoint_velocity/cmd_vel_unstamped', Twist, queue_size = 1)
-        # Linear setpoint velocities
-        self.vx = 0
-        self.vy = 0
-        self.vz = 0
+
+        # Linear setpoint velocities in downward camera frame
+        self.vx__dc = 0.0
+        self.vy__dc = 0.0
+        self.vz__dc = 0.0
+
+        # Yaw setpoint velocities in downward camera frame
+        self.wz__dc = 0.0
 
         # Initialize instance of CvBridge to convert images between OpenCV images and ROS images
         self.bridge = CvBridge()
@@ -124,13 +131,17 @@ class LineController:
 
     def line_sub_cb(self, param):
         """
-        Callback function which is called when a new message of type State is recieved by self.state_subscriber.
+        Callback function which is called when a new message of type Line is recieved by self.line_sub.
+	    Notes:
+		- This is the function that maps a detected line into a velocity 
+		command
             
             Args:
-                - 
+                - param: parameters that define the center and direction of detected line
         """
         # Find the closest point on the line to the center of the image
-        # T is the unit vector tangent to the line pointing in the positive x direction (which is the same as the positive x direction of the bu frame)
+        # T is the unit vector tangent to the line pointing in the positive x direction 
+        # (which is the same as the positive x direction of the bu frame)
         if param.vx >= 0:
             T = np.array([param.vx, param.vy])
         else:
@@ -138,7 +149,8 @@ class LineController:
         # point is a point on the line
         point = np.array([param.x, param.y])
 
-        # closest is the point on the line closest to the center of the image (https://forum.unity.com/threads/how-do-i-find-the-closest-point-on-a-line.340058/)
+        # closest is the point on the line closest to the center of the image 
+        # (https://forum.unity.com/threads/how-do-i-find-the-closest-point-on-a-line.340058/)
         closest = point + T * np.dot(T, CENTER - point)
 
         # Aim for a point a distance of EXTEND (in pixels) from the closest point on the line
@@ -146,14 +158,14 @@ class LineController:
         # Error between the center of the image and the target point
         error = target - CENTER
 
-        # Set linear velocities based on error
-        self.vx = error[0] * P_X
-        self.vy = error[1] * P_Y
+        # Set linear velocities in downward camera frame based on error
+        self.vx__dc = error[0] * KP_X
+        self.vy__dc = error[1] * KP_Y
 
         # Get angle between x-axis and the tangent vector to the line. Calculate direction (+z, -z) using the cross product
         theta = math.acos(np.dot(T, (1, 0))) * np.cross((1, 0, 0), T+[0])[2]
         # Set angular velocites based on error between forward pointing vector and tangent vector
-        self.wz = theta * P_Z_W
+        self.wz__dc = theta * KP_Z_W
 
         if DISPLAY:
             image = self.image.copy()
@@ -208,20 +220,29 @@ class LineController:
             # NOTE: velsp__lenu is a Twist message, not a simple array or list. To access and assign the x,y,z
             #       components of the translational velocity, you need to use velsp__lenu.linear.x, 
             #       velsp__lenu.linear.y, velsp__lenu.linear.z
-            # Set linear velocity (convert command velocity from control_reference_frame to lenu)
-            vx, vy, vz = coord_transforms.get_v__lenu((self.vx, self.vy, self.vz), 
-                                                    self.control_reference_frame, 
-                                                    self.quat_bu_lenu)
+
+            # Set linear velocity (convert command velocity from downward camera frame to lenu)
+            vx, vy, vz = coord_transforms.get_v__lenu((self.vx__dc, self.vy__dc, self.vz__dc), 
+                                                        'dc', self.quat_bu_lenu)
             velsp__lenu.linear.x = vx
             velsp__lenu.linear.y = vy
             velsp__lenu.linear.z = vz
 
+            # Set angular velocity (convert command angular velocity from downward camera to lenu)
+            _, _, wz = coord_transforms.get_v__lenu((0.0, 0.0, self.wz__dc), 
+                                                    'dc', self.quat_bu_lenu)
+
+            velsp__lenu.angular.x = 0.0
+            velsp__lenu.angular.y = 0.0
+            velsp__lenu.angular.z = wz
+
             # enforce safe velocity limits
-            if _MAX_SPEED < 0.0 or _MAX_CLIMB_RATE < 0.0:
-                raise Exception("_MAX_SPEED and _MAX_CLIMB_RATE must be positive")
+            if _MAX_SPEED < 0.0 or _MAX_CLIMB_RATE < 0.0 or _MAX_ROTATION_RATE < 0.0:
+                raise Exception("_MAX_SPEED,_MAX_CLIMB_RATE, and _MAX_ROTATION_RATE must be positive")
             velsp__lenu.linear.x = min(max(vx,-_MAX_SPEED), _MAX_SPEED)
             velsp__lenu.linear.y = min(max(vy,-_MAX_SPEED), _MAX_SPEED)
             velsp__lenu.linear.z = min(max(vz,-_MAX_CLIMB_RATE), _MAX_CLIMB_RATE)
+            velsp__lenu.angular.z = min(max(wz,-_MAX_ROTATION_RATE), _MAX_ROTATION_RATE)
 
             # Publish setpoint velocity
             self.velocity_pub.publish(velsp__lenu)
@@ -234,8 +255,7 @@ class LineController:
 if __name__ == "__main__":
 
     # Create Controller instance
-    cframe = 'dc' # Reference frame commands are given in
-    controller = LineController(control_reference_frame=cframe)
+    controller = LineController()
     # Start streaming setpoint velocites
     controller.start()
 

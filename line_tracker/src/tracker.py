@@ -1,123 +1,245 @@
 #!/usr/bin/env python
 
-from __future__ import division, print_function
-
-import rospy
-import threading
+###########
+# IMPORTS #
+###########
 import numpy as np
-from geometry_msgs.msg import TwistStamped, PoseStamped, Quaternion, Point, Vector3
-from sensor_msgs.msg import Image
-from tf.transformations import quaternion_from_euler, quaternion_matrix
-from aero_control_staffonly.msg import Line, TrackerParams
+import rospy
 import cv2
+import math
+from cv_bridge import CvBridge
+from geometry_msgs.msg import Twist, PoseStamped
+from sensor_msgs.msg import Image
+from aero_control.msg import Line
 import mavros
 from mavros_msgs.msg import State
-from cv_bridge import CvBridge, CvBridgeError
-from copy import deepcopy
+from threading import Thread
 
-NO_ROBOT = False # set to True to test on laptop
-MAX_SPEED = .5 # [m/s]
-K_P_X = 0 # TODO: decide upon initial K_P_X
-K_P_Y = 0 # TODO: decide upon initial K_P_Y
-class LineTracker:
-    def __init__(self, rate=10):
-        """ Initializes publishers and subscribers, sets initial values for vars
-        :param rate: the rate at which the setpoint_velocity is published
-        """
-        assert rate > 2 # make sure rate is high enough, if new setpoint recieved within .5 seconds, robot will switch back to POSCTL
-        self.rate = rospy.Rate(rate)
+import sys, os
+sys.path.append(os.path.join(sys.path[0], '../..'))
+from common import coordinate_transforms
 
-        mavros.set_namespace()
+#############
+# CONSTANTS #
+#############
+_RATE = 10 # (Hz) rate for rospy.rate
+_MAX_SPEED = 1 # (m/s)
+_MAX_CLIMB_RATE = 0.5 # m/s 
+IMAGE_HEIGHT = 128
+IMAGE_WIDTH = 128
+CENTER = np.array([IMAGE_WIDTH//2, IMAGE_HEIGHT//2]) # Center of the image frame. We will treat this as the center of mass of the drone
+EXTEND = 64 # Number of pixels forward to extrapolate the line
+P_X = .005 
+P_Y = .005
+P_Z_W = 2
+DISPLAY = True
+
+#########################
+# COORDINATE TRANSFORMS #
+#########################
+# Create CoordTransforms instance
+coord_transforms = coordinate_transforms.CoordTransforms()
+
+##############
+# CONTROLLER #
+##############
+class LineController:
+
+    def __init__(self, control_reference_frame='dc'):
+        # Create node with name 'tracker'
+        rospy.init_node('tracker')
+
+	self.control_reference_frame=control_reference_frame
+
+        # A subscriber to the topic '/mavros/local_position/pose. self.pos_sub_cb is called when a message of type 'PoseStamped' is recieved 
+        self.pos_sub = rospy.Subscriber('/mavros/local_position/pose', PoseStamped, self.pos_sub_cb)
+        # Quaternion representing the rotation of the drone's body frame in the NED frame. initiallize to identity quaternion
+        self.quat_bu_lenu = (0, 0, 0, 1)
+
+        # A subscriber to the topic '/mavros/state'. self.state_sub_cb is called when a message of type 'State' is recieved
+        self.state_sub = rospy.Subscriber("/mavros/state", State, self.state_sub_cb)
+        # State of the drone. 
+	# 	self.state.mode = flight mode (e.g. 'OFFBOARD', 'POSCTL', etc), 
+	# 	self.state.armed = are motors armed (True or False), etc.
+        self.mode = State().mode
+
+        # A subscriber to the topic '/line/param'. self.line_sub_cb is called when a message of type 'Line' is recieved 
+        self.line_sub = rospy.Subscriber('/line/param', Line, self.line_sub_cb)
+
+        # A subscriber to the topic '/aero_downward_camera/image'. self.image_sub_cb is called when a message is recieved 
+        self.camera_sub = rospy.Subscriber('/aero_downward_camera/image', Image, self.camera_sub_cb)
+        self.image = None
+
+        # A publisher which will publish an image annotated with the detected line to the topic 'line/tracker_image'
+        self.tracker_image_pub = rospy.Publisher('/tracker_image', Image, queue_size=1)
+
+        # A publisher which will publish the desired linear and anglar velocity to the topic '/setpoint_velocity/cmd_vel_unstamped'
+        self.velocity_pub = rospy.Publisher('/mavros/setpoint_velocity/cmd_vel_unstamped', Twist, queue_size = 1)
+        # Linear setpoint velocities
+        self.vx = 0
+        self.vy = 0
+        self.vz = 0
+
+        # Initialize instance of CvBridge to convert images between OpenCV images and ROS images
         self.bridge = CvBridge()
 
-        self.pub_local_velocity_setpoint = rospy.Publisher("/mavros/setpoint_velocity/cmd_vel", TwistStamped, queue_size=1)
-        self.sub_line_param = rospy.Subscriber("/line/param", Line, self.line_param_cb)
-        self.pub_error = rospy.publisher("/line/error", Vector3, queue_size=1)
+        # Publishing rate
+        self.rate = rospy.Rate(_RATE)
+
+        # Boolean used to indicate if the streaming thread should be stopped
+        self.stopped = False
 
 
-        # Variables dealing with publishing setpoint
-        self.sub_state = rospy.Subscriber("/mavros/state", State, self.state_cb)
-        self.current_state = None
-        self.offboard_point_streaming = False
+    ######################
+    # CALLBACK FUNCTIONS #
+    ######################
+    def pos_sub_cb(self, posestamped):
+        """
+        Callback function which is called when a new message of type PoseStamped is recieved by self.position_subscriber.
+            Args: 
+                - posestamped = ROS PoseStamped message
+        """
+        self.quat_bu_lenu = (   posestamped.pose.orientation.x, 
+                                posestamped.pose.orientation.y, 
+                                posestamped.pose.orientation.z, 
+                                posestamped.pose.orientation.w)
 
-        # Setpoint field expressed as the desired velocity of the body-down frame
-        #  with respect to the world frame parameterized in the body-down frame
-        self.velocity_setpoint = None
-
-        while not rospy.is_shutdown() and self.current_state == None:
-            pass  # Wait for connection
-
-    def line_param_cb(self, line_params):
-        mode = getattr(self.current_state, "mode", None)
-        if (mode is not None and mode != "MANUAL") or NO_ROBOT:
-            """ Map line paramaterization to a velocity setpoint so the robot will approach and follow the LED strip
+    def state_sub_cb(self, state):
+        """
+        Callback function which is called when a new message of type State is recieved by self.state_subscriber.
             
-            Note: Recall the formatting of a Line message when dealing with line_params
+            Args:
+                - state = mavros State message
+        """
+        self.mode = state.mode
 
-            Recomended Steps: 
+    def camera_sub_cb(self, image):
+        """
+        Callback function which is called when a new message of type Image is recieved by self.camera_sub.
+            Args: 
+                - image = ROS Image message
+        """
+        # Convert Image msg to and OpenCV image
+        self.image = cv2.cvtColor(self.bridge.imgmsg_to_cv2(image, "8UC1"), cv2.COLOR_GRAY2BGR)
+
+    def line_sub_cb(self, param):
+        """
+        Callback function which is called when a new message of type State is recieved by self.state_subscriber.
             
-            Read the documentation at https://bwsi-uav.github.io/website/line_following.html
-
-            After calculating your various control signals, place them in self.velocity_setpoint (which
-                is a TwistStamped, meaning self.velocity_setpoint.twist.linear.x is x vel for example)
-
-            Be sure to publish your error using self.pub_error.publish(Vector3(x_error,y_error,0))
-    
-            """
-            # TODO-START: Create velocity controller based on above specs
-            raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
-            # TODO-END
-
-    def state_cb(self, state):
-        """ Starts setpoint streamer when mode is "POSCTL" and disables it when mode is "MANUAL"
-        :param state: Given by subscribed topic `/mavros/state`
+            Args:
+                - 
         """
-        self.current_state = state
-        mode = getattr(state, "mode", None)
-        if (mode == "POSCTL" or NO_ROBOT) and not self.offboard_point_streaming:
-            rospy.loginfo("Setpoint stream ENABLED")
-            self.start_streaming_offboard_points()
-        elif mode == "MANUAL" and self.offboard_point_streaming:
-            rospy.loginfo("Setpoint stream DISABLED")
-            self.stop_streaming_offboard_points()
+        # Find the closest point on the line to the center of the image
+        # T is the unit vector tangent to the line pointing in the positive x direction (which is the same as the positive x direction of the bu frame)
+        if param.vx >= 0:
+            T = np.array([param.vx, param.vy])
+        else:
+            T = np.array([-param.vx, -param.vy])
+        # point is a point on the line
+        point = np.array([param.x, param.y])
 
-    def start_streaming_offboard_points(self):
-        """ Starts thread that will publish yawrate at `rate` in Hz
+        # closest is the point on the line closest to the center of the image (https://forum.unity.com/threads/how-do-i-find-the-closest-point-on-a-line.340058/)
+        closest = point + T * np.dot(T, CENTER - point)
+
+        # Aim for a point a distance of EXTEND (in pixels) from the closest point on the line
+        target = closest + T * EXTEND
+        # Error between the center of the image and the target point
+        error = target - CENTER
+
+        # Set linear velocities based on error
+        self.vx = error[0] * P_X
+        self.vy = error[1] * P_Y
+
+        # Get angle between x-axis and the tangent vector to the line. Calculate direction (+z, -z) using the cross product
+        theta = math.acos(np.dot(T, (1, 0))) * np.cross((1, 0, 0), T+[0])[2]
+        # Set angular velocites based on error between forward pointing vector and tangent vector
+        self.wz = theta * P_Z_W
+
+        if DISPLAY:
+            image = self.image.copy()
+            # Draw circle at closest 
+            cv2.circle(image, (int(closest[0]), int(closest[1])), 5, (255,128,255), -1)
+	    # Get unit error vector
+            unit_error = error/np.linalg.norm(error)
+	    # Draw line from CENTER to target
+	    cv2.line(image, (int(CENTER[0]), int(CENTER[1])), (int(target[0]), int(target[1])), (255, 0, 0), 2)
+	    # Convert color to a ROS Image message
+            image_msg = self.bridge.cv2_to_imgmsg(image, "rgb8")
+            # Publish annotated image
+            self.tracker_image_pub.publish(image_msg)
+
+
+    #############
+    # STREAMING #
+    #############
+    def start(self): 
         """
-        def run_streaming():
-            self.offboard_point_streaming = True
-            while (not rospy.is_shutdown()) and self.offboard_point_streaming:
-                # Publish commands
-                if (self.vel_setpnt is not None):
-                    # limit speed for safety
-                    velocity_setpoint_limited = deepcopy(self.velocity_setpoint)
-                    speed = np.linalg.norm([velocity_setpoint_limited.linear.x,
-                                            velocity_setpoint_limited.linear.y,
-                                            velocity_setpoint_limited.linear.z])
-                    if speed > MAX_SPEED:
-                        velocity_setpoint_limited.linear.x *= MAX_SPEED / speed
-                        velocity_setpoint_limited.linear.y *= MAX_SPEED / speed
-                        velocity_setpoint_limited.linear.z *= MAX_SPEED / speed
-
-                    # Publish limited setpoint
-                    self.vel_setpoint_pub.publish(velocity_setpoint_limited)
-                self.rate.sleep()
-
-        self.offboard_point_streaming_thread = threading.Thread(target=run_streaming)
-        self.offboard_point_streaming_thread.start()
-
-    def stop_streaming_offboard_points(self):
-        """ Safely terminates offboard publisher
+        Start thread to stream velocity commands.
         """
-        self.offboard_point_streaming = False
+        self.offboard_command_streaming_thread = Thread(target=self.stream_offboard_velocity_setpoints)
+        self.offboard_command_streaming_thread.start()
+
+    def stop(self):
+        """
+        Stop streaming thread.
+        """
+        self.stopped = True
         try:
-            self.offboard_point_streaming_thread.join()
+            self.offboard_command_streaming_thread.join()
         except AttributeError:
             pass
 
+    def stream_offboard_velocity_setpoints(self):
+        """
+        Continually publishes Twist commands in the local lenu reference frame. The values of the 
+        Twist command are set in self.vx, self.vy, self.vz and self.wx, self.wy, self.wz.
+        """
+        # Create twist message for velocity setpoint represented in lenu coords
+        velsp__lenu = Twist()
+
+        # Continualy publish velocity commands
+        while True:
+            # if the stop thread indicator variable is set to True, stop the thread
+            if self.stopped:
+                return
+
+
+            # Create velocity setpoint
+            # NOTE: velsp__lenu is a Twist message, not a simple array or list. To access and assign the x,y,z
+            #       components of the translational velocity, you need to use velsp__lenu.linear.x, 
+            #       velsp__lenu.linear.y, velsp__lenu.linear.z
+            # Set linear velocity (convert command velocity from control_reference_frame to lenu)
+            vx, vy, vz = coord_transforms.get_v__lenu((self.vx, self.vy, self.vz), 
+                                                    self.control_reference_frame, 
+                                                    self.quat_bu_lenu)
+            velsp__lenu.linear.x = vx
+            velsp__lenu.linear.y = vy
+            velsp__lenu.linear.z = vz
+
+            # enforce safe velocity limits
+            if _MAX_SPEED < 0.0 or _MAX_CLIMB_RATE < 0.0:
+                raise Exception("_MAX_SPEED and _MAX_CLIMB_RATE must be positive")
+            velsp__lenu.linear.x = min(max(vx,-_MAX_SPEED), _MAX_SPEED)
+            velsp__lenu.linear.y = min(max(vy,-_MAX_SPEED), _MAX_SPEED)
+            velsp__lenu.linear.z = min(max(vz,-_MAX_CLIMB_RATE), _MAX_CLIMB_RATE)
+
+            # Publish setpoint velocity
+            self.velocity_pub.publish(velsp__lenu)
+
+            # Publish velocity at the specified rate
+            self.rate.sleep()
+
+
 
 if __name__ == "__main__":
-    rospy.init_node("line_tracker")
-    d = LineTracker()
+
+    # Create Controller instance
+    cframe = 'dc' # Reference frame commands are given in
+    controller = LineController(control_reference_frame=cframe)
+    # Start streaming setpoint velocites
+    controller.start()
+
     rospy.spin()
-d.stop_streaming_offboard_points()
+
+    # Stop streaming setpoint velocites
+    controller.stop()

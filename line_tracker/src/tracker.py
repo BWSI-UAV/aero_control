@@ -139,6 +139,10 @@ class LineController:
             Args:
                 - param: parameters that define the center and direction of detected line
         """
+
+	'''TODO-START: FILL IN CODE HERE '''
+	raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
+
         # Find the closest point on the line to the center of the image
         # T is the unit vector tangent to the line pointing in the positive x direction 
         # (which is the same as the positive x direction of the bu frame)
@@ -146,26 +150,36 @@ class LineController:
             T = np.array([param.vx, param.vy])
         else:
             T = np.array([-param.vx, -param.vy])
+
         # point is a point on the line
-        point = np.array([param.x, param.y])
+
 
         # closest is the point on the line closest to the center of the image 
         # (https://forum.unity.com/threads/how-do-i-find-the-closest-point-on-a-line.340058/)
-        closest = point + T * np.dot(T, CENTER - point)
+
 
         # Aim for a point a distance of EXTEND (in pixels) from the closest point on the line
-        target = closest + T * EXTEND
+
+
         # Error between the center of the image and the target point
-        error = target - CENTER
+        
 
         # Set linear velocities in downward camera frame based on error
-        self.vx__dc = error[0] * KP_X
-        self.vy__dc = error[1] * KP_Y
+        
+        
 
         # Get angle between x-axis and the tangent vector to the line. Calculate direction (+z, -z) using the cross product
         theta = math.acos(np.dot(T, (1, 0))) * np.cross((1, 0, 0), T+[0])[2]
         # Set angular velocites based on error between forward pointing vector and tangent vector
-        self.wz__dc = theta * KP_Z_W
+        
+
+	'''TODO-END '''
+
+
+	### DO NOT MODIFY ###
+	
+	# publish tracker commands to an image that can be visualized on
+	# a camera feed
 
         if DISPLAY:
             image = self.image.copy()

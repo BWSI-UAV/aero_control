@@ -40,6 +40,9 @@ class ARDistChecker:
         self.ar_tag_seen_pub = None
         raise Exception("Delete this and fill-in subscriber + publisher initialization!")
         
+        # Initialize current_marker
+        self.current_marker = None
+        
 
     def ar_pose_cb(self,msg):
         '''
@@ -56,6 +59,7 @@ class ARDistChecker:
         '''
         
         raise Exception("Delete this and filter AR messages!")
+        self.current_marker = None
 
         self.check_dist()
         
@@ -65,10 +69,13 @@ class ARDistChecker:
         Finds distance to nearest AR tag and publishes its tag number to "/seen_tag"
         if it is the next tag on our list to see and we haven't seen it before.
         
+        Not graded, but nice to have:
         If AR tag is already seen, or is not the next tag to see, will print that to loginfo.
         If new tag is not seen within set distance, tells how far you should go 
         forward to be within range.
         '''
+        seen_marker = self.current_marker
+        
 
 
 if __name__ == '__main__':

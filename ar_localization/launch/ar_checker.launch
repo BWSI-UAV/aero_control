@@ -1,6 +1,4 @@
-<!-- Sample launch file for using RealSense R200 camera with rgbd_launch -->
 <launch>
-<node pkg="rosservice" type="rosservice" name="global_loc" args="call --wait /mavros/setpoint_velocity/mav_frame 8"/>
   <!-- node for ar tag tracking -->
   <node name="ar_track_alvar" pkg="ar_track_alvar" type="individualMarkersNoKinect" respawn="false" output="screen">
     <param name="output_frame" type="string" value="camera_rgb_optical_frame"/>
@@ -8,17 +6,31 @@
     <remap from="camera_image" to="/camera/rgb/image_raw"/>
     <remap from="camera_info"  to="/camera/rgb/camera_info"/>
   </node>
-<node name="ar_checker" pkg="aero_control" type="ar_checker.py" output="screen"/>
+  
+  <!-- Launch our code -->
+  <node name="ar_checker" pkg="aero_control_staffonly" type="ar_checker.py" output="screen"/>
+  
+  <!-- Launch mavros -->
+  <arg name="fcu_url" default="tcp://127.0.0.1:5760" />
+  <arg name="gcs_url" default="" />
+  <arg name="tgt_system" default="1" />
+  <arg name="tgt_component" default="1" />
   <arg name="log_output" default="screen" />
-	<arg name="fcu_protocol" default="v2.0" />
-	<arg name="respawn_mavros" default="false" />
+  <arg name="fcu_protocol" default="v2.0" />
+  <arg name="respawn_mavros" default="false" />
 
-  <node pkg="mavros" type="mavros_node" name="mavros" required="$(eval not respawn_mavros)" clear_params="true" output="$(arg log_output)" respawn="$(arg respawn_mavros)">
-		<param name="fcu_url" value="tcp://127.0.0.1:5760"/>
-		<param name="system_id" value="2"/>
-		<param name="pluginlists_yaml" value="$(find mavros)/launch/px4_pluginlists.yaml" />
-		<param name="config_yaml" value="$(find mavros)/launch/px4_config.yaml" />
-   </node>
+  <include file="$(find mavros)/launch/node.launch">
+          <arg name="pluginlists_yaml" value="$(find mavros)/launch/px4_pluginlists.yaml" />
+          <arg name="config_yaml" value="$(find mavros)/launch/px4_config.yaml" />
+          <arg name="fcu_url" value="$(arg fcu_url)" />
+          <arg name="gcs_url" value="$(arg gcs_url)" />
+          <arg name="tgt_system" value="$(arg tgt_system)" />
+          <arg name="tgt_component" value="$(arg tgt_component)" />
+          <arg name="log_output" value="$(arg log_output)" />
+          <arg name="fcu_protocol" value="$(arg fcu_protocol)" />
+          <arg name="respawn_mavros" default="$(arg respawn_mavros)" />
+  </include>
+
 
   <!-- "camera" should be a user friendly string to uniquely identify the device namespace.
        All topics are pushed down into the "camera" namespace, and it is prepended to tf frame ids. -->

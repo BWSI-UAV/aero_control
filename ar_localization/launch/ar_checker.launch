@@ -8,7 +8,7 @@
   </node>
   
   <!-- Launch our code -->
-  <node name="ar_checker" pkg="aero_control_staffonly" type="ar_checker.py" output="screen"/>
+  <node name="ar_checker" pkg="aero_control" type="ar_checker.py" output="screen"/>
   
   <!-- Launch mavros -->
   <arg name="fcu_url" default="tcp://127.0.0.1:5760" />

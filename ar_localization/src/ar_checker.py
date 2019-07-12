@@ -24,7 +24,6 @@ a tag out of order, or you can be very careful how you fly the drone.
 
 class ARDistChecker:
     def __init__(self):
-        rospy.loginfo("ARDistChecker Started!")
         '''
         Initializes class: creates subscriber to detect AR tags and publisher to publish which tag it saw.
         
@@ -36,17 +35,17 @@ class ARDistChecker:
         Also create any class variables you need to store data (such as which 
         tags you have seen already, etc...)
         '''
+        rospy.loginfo("ARDistChecker Started!")
+
         self.ar_pose_sub = None 
         self.ar_tag_seen_pub = None
         raise Exception("Delete this and fill-in subscriber + publisher initialization!")
         
         # Initialize current_marker
         self.current_marker = None
-        
 
     def ar_pose_cb(self,msg):
-        '''
-        Callback for when the drone sees an AR tag
+        '''Callback for when the drone sees an AR tag
 
         Parameters
         ----------
@@ -61,8 +60,7 @@ class ARDistChecker:
         raise Exception("Delete this and filter AR messages!")
         self.current_marker = None
 
-        self.check_dist()
-        
+        self.check_dist()      
 
     def check_dist(self):
         '''
@@ -74,7 +72,7 @@ class ARDistChecker:
         If new tag is not seen within set distance, tells how far you should go 
         forward to be within range.
         '''
-        seen_marker = self.current_marker
+        marker = self.current_marker
         
 
 
@@ -83,6 +81,3 @@ if __name__ == '__main__':
     a = ARDistChecker()
 
     rospy.spin()
-
-
-

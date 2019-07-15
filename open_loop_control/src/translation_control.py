@@ -147,17 +147,12 @@ class TranslationController:
             
             Use the coord_transforms.get_v__lenu function in aero_control/common/coordinate_transforms.py 
             to convert velocities in control_reference_frame to lenu frame.
+            
+            Don't forget to prevent vx, vy from exceeding _MAX_SPEED and vz from exceeding _MAX_CLIMB_RATE
             '''
             raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
             
             '''TODO-END '''
-
-            # enforce safe velocity limits
-            if _MAX_SPEED < 0.0 or _MAX_CLIMB_RATE < 0.0:
-                raise Exception("_MAX_SPEED and _MAX_CLIMB_RATE must be positive")
-            velsp__lenu.linear.x = min(max(vx,-_MAX_SPEED), _MAX_SPEED)
-            velsp__lenu.linear.y = min(max(vy,-_MAX_SPEED), _MAX_SPEED)
-            velsp__lenu.linear.z = min(max(vz,-_MAX_CLIMB_RATE), _MAX_CLIMB_RATE)
 
             # Publish setpoint velocity
             self.velocity_pub.publish(velsp__lenu)
@@ -208,30 +203,15 @@ class TranslationController:
         for the velocity commands to be published for.
         '''
         raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
-        
-        # time (datetime.timedelta object) is the amount of time the velocity message will be published for
-        # Change it to the correct duration
-        time = datetime.timedelta(seconds = None)
+        move_time = 0
         
         ''' TODO-END'''
         
-        # Record the start time
-        start_time = datetime.datetime.now()
-
-        # Set command velocites (vi = di/time)
-        self.vx = dx/time.total_seconds()
-        self.vy = dy/time.total_seconds()
-        self.vz = dz/time.total_seconds()
-
-        rospy.loginfo('Open loop controller: Time of translation: {:.2f}'.format(time.total_seconds()))
+        rospy.loginfo('Open loop controller: Time of translation: {:.2f}'.format(move_time))
         rospy.loginfo('Open loop controller: Displacement vector: {}'.format(displacement))
-
-            # Publish command velocites for time seconds
-        while datetime.datetime.now() - start_time < time and not rospy.is_shutdown():
-            # print(datetime.datetime.now() - start_time)
-            # Note: we don't actually have to call the publish command here. Velocity command are automatically  published 
-            # by the stream function which is running in parrellel
-            self.rate.sleep()
+        
+        # Wait for us to finish publishing velocities
+        rospy.sleep(move_time)
 
         # Reset command velocites to 0
         self.vx = self.vy = self.vz = 0

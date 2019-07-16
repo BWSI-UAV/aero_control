@@ -135,12 +135,15 @@ class TranslationController:
             if self.stopped:
                 return
 
-
-            # Create velocity setpoint
-            # NOTE: velsp__lenu is a Twist message, not a simple array or list. To access and assign the x,y,z
-            #       components of the translational velocity, you need to use velsp__lenu.linear.x, 
-            #       velsp__lenu.linear.y, velsp__lenu.linear.z
-            '''TODO-START: FILL IN CODE HERE 
+            '''
+            Create velocity setpoint
+            NOTE: velsp__lenu is a Twist message, not a simple array or list. It
+            is composed of two 3-long vectors: linear and angular.
+            To access and assign the x,y,z components of the translational velocity, 
+            you need to use velsp__lenu.linear.x, etc.
+            See documentation here: https://docs.ros.org/melodic/api/geometry_msgs/html/msg/Twist.html
+            
+            TODO-START: FILL IN CODE HERE 
             Use the provided functions to calculate the desired velocity of the body-up frame with respect to the 
             local ENU frame, expressed in local ENU coordinates (i.e. vsp_bu_lenu__lenu).
             Encode this in the linear portion of the Twist message.

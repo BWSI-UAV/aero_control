@@ -89,10 +89,12 @@ class LineDetector:
         
         
         if len(contours) > 0:
-            # We will consider the countour with the most area to be our line
+            # We will consider the countour with the most area to be our line, so find the largest
+            # contour to use
             
             
-            # Fit a rectangle around the max countour (the smallest area rectangle that fits the entire countour)
+            # Fit a rectangle around the max countour (i.e. the smallest area rectangle that fits the entire
+            # countour)
             
 
             # Get the hight and width of the rectangle. If neither value in longer than LENGTH_THRESH, we
@@ -102,35 +104,33 @@ class LineDetector:
             # Fit a line to the max countour. This will be our line. Return values are length 1 numpy arrays
             
             
-            # Publish a copy of the image annotated with the detected line
-            if DISPLAY:
-                # Draw the rectangle around the countour
-                box = cv2.boxPoints(rectangle)
-                box = np.int0(box)
-                cv2.drawContours(color,[box],0,(0,255,0),2)
+            # Publish a copy of the image annotated with the detected line (only if display is true)
+            
+                # Draw the rectangle around the countour. Hint: Use cv2.boxPoints() and cv2.drawContours()
+                
 
-                # Draw point at (x, y)
-                cv2.circle(color, (int(x),int(y)), 5, (255,128,255), -1)
+                # Draw point at (x, y). Hint: use cv2.circle()
+                
 
-                # Draw vector (vx, vy) located at point (x,y))
+                # Draw vector (vx, vy) located at point (x,y)) TODO: NOTE: ASK MARK
                 scale = 30
                 cv2.line(img=color,pt1=(int(x), int(y)),pt2=(int(x+vx*scale), int(y+vy*scale)),color=(255,0,255),thickness=1)
                 
-                # Convert color to a ROS Image message
-                color_msg = self.bridge.cv2_to_imgmsg(color, "rgb8")
+                # Convert color image to a ROS Image message
+                
                 # Publish annotated image
-                self.detector_image_pub.publish(color_msg)
+                
 
             return x, y, vx, vy
 
         '''TODO-END '''
 
         # Publish image even if no line is detected
-        if DISPLAY:
+        
             # Convert color to a ROS Image message
-            color_msg = self.bridge.cv2_to_imgmsg(color, "rgb8")
-            # Publish annotated image
-            self.detector_image_pub.publish(color_msg)
+            
+            # Publish annotated image with no contours or lines overlayed
+            
 
         # If no countors were found, return None
         return None

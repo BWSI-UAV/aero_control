@@ -15,9 +15,9 @@ import sys
 #############
 # CONSTANTS #
 #############
-LOW = 200 # Lower threshold bound
-HI = 255 # Upper threshold bound
-LENGTH_THRESH = 60 # If the length of the largest countour is less than LENGTH_THRESH, we will not consider it a line
+LOW = None# Lower image thresholding bound
+HI = None # Upper image thresholding bound
+LENGTH_THRESH = None # If the length of the largest countour is less than LENGTH_THRESH, we will not consider it a line
 KERNEL  = np.ones((5,5),np.uint8)
 DISPLAY = True
 
@@ -53,6 +53,7 @@ class LineDetector:
 
         # Detect line in the image. detect returns a  parameterize the line (if one exists)
         line = self.detect_line(image)
+
         # If a line was detected, publish the parameterization to the topic '/line/param'
         if line is not None:
             msg = Line()
@@ -65,7 +66,7 @@ class LineDetector:
     ##########
     def detect_line(self, image):
         """ 
-        Given an image, fit a line to biggest contour if it meets size requirements
+        Given an image, fit a line to biggest contour if it meets size requirements (otherwise return None)
         and return a paramaterization of the line as a center point on the line and a vector
         pointing in the direction of the line.
             Args:
@@ -82,27 +83,15 @@ class LineDetector:
         # of the image for debuging purposes
         
 
-        # Threshold the image
+        # Threshold the image and find contours in the masked image
+        # If contours exist, we will consider the countour with the most area to be our line
         
-
-        # Find contours in the masked image
-        
-        
-        if len(contours) > 0:
-            # We will consider the countour with the most area to be our line, so find the largest
-            # contour to use
-            
-            
-            # Fit a rectangle around the max countour (i.e. the smallest area rectangle that fits the entire
-            # countour)
-            
-
-            # Get the hight and width of the rectangle. If neither value in longer than LENGTH_THRESH, we
+            # Fit a rectangle of smallest area possible around the max countour and get the hight and width of the rectangle. 
+            # If neither value in longer than LENGTH_THRESH, we
             # will not consider the countour to be a line
             
 
-            # Fit a line to the max countour. This will be our line. Return values are length 1 numpy arrays
-            
+            # Fit a line to the max countour. This will be our line to return. fitLine() return values are length 1 numpy arrays
             
             # Publish a copy of the image annotated with the detected line (only if display is true)
             
@@ -112,16 +101,16 @@ class LineDetector:
                 # Draw point at (x, y). Hint: use cv2.circle()
                 
 
-                # Draw vector (vx, vy) located at point (x,y)) TODO: NOTE: ASK MARK
-                scale = 30
-                cv2.line(img=color,pt1=(int(x), int(y)),pt2=(int(x+vx*scale), int(y+vy*scale)),color=(255,0,255),thickness=1)
+                # Draw vector parallel to the fitted line at point (x,y)). 
+                # Hint: just use cv2.line() and multiply (vx,vy) by some scalar to make the line 
+                # a certain length and find the second point to draw the line
                 
                 # Convert color image to a ROS Image message
                 
                 # Publish annotated image
                 
 
-            return x, y, vx, vy
+                return x, y, vx, vy
 
         '''TODO-END '''
 

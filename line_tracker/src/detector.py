@@ -112,7 +112,6 @@ class LineDetector:
 
                 return x, y, vx, vy
 
-        '''TODO-END '''
 
         # Publish image even if no line is detected
         
@@ -123,6 +122,7 @@ class LineDetector:
 
         # If no countors were found, return None
         return None
+        '''TODO-END '''
 
 
 if __name__ == '__main__':

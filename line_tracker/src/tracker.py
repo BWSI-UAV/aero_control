@@ -23,16 +23,16 @@ from common import coordinate_transforms
 # CONSTANTS #
 #############
 _RATE = 10 # (Hz) rate for rospy.rate
-_MAX_SPEED = 1 # (m/s)
-_MAX_CLIMB_RATE = 0.5 # m/s
-_MAX_ROTATION_RATE = 0.5 # rad/s 
+_MAX_SPEED = None # (m/s)
+_MAX_CLIMB_RATE = None # m/s
+_MAX_ROTATION_RATE = None # rad/s 
 IMAGE_HEIGHT = 128
 IMAGE_WIDTH = 128
 CENTER = np.array([IMAGE_WIDTH//2, IMAGE_HEIGHT//2]) # Center of the image frame. We will treat this as the center of mass of the drone
-EXTEND = 64 # Number of pixels forward to extrapolate the line
-KP_X = .005 
-KP_Y = .005
-KP_Z_W = 2
+EXTEND = None # Number of pixels forward to extrapolate the line
+KP_X = None
+KP_Y = None
+KP_Z_W = None
 DISPLAY = True
 
 #########################
@@ -144,33 +144,15 @@ class LineController:
         raise Exception("CODE INCOMPLETE! Delete this exception and replace with your own code")
 
         # Find the closest point on the line to the center of the image
-        # T is the unit vector tangent to the line pointing in the positive x direction 
-        # (which is the same as the positive x direction of the bu frame)
-        if param.vx >= 0:
-            T = np.array([param.vx, param.vy])
-        else:
-            T = np.array([-param.vx, -param.vy])
-
-        # point is a point on the line
+        # and aim for a point a distance of EXTEND (in pixels) from the closest point on the line
 
 
-        # closest is the point on the line closest to the center of the image 
-        # (https://forum.unity.com/threads/how-do-i-find-the-closest-point-on-a-line.340058/)
-
-
-        # Aim for a point a distance of EXTEND (in pixels) from the closest point on the line
-
-
-        # Error between the center of the image and the target point
+        # Find error between the center of the image and the target point
+        # and use your knowledge of controlers to set linear velocities in downward camera frame based on error
         
 
-        # Set linear velocities in downward camera frame based on error
-        
-        
-
-        # Get angle between x-axis and the tangent vector to the line. Calculate direction (+z, -z) using the cross product
-        theta = math.acos(np.dot(T, (1, 0))) * np.cross((1, 0, 0), T+[0])[2]
-        # Set angular velocites based on error between forward pointing vector and tangent vector
+        # Get angle between x-axis and the tangent vector to the line
+        # and set angular velocites based on error between forward pointing vector and tangent vector
         
 
         '''TODO-END '''
@@ -217,8 +199,7 @@ class LineController:
 
     def stream_offboard_velocity_setpoints(self):
         """
-        Continually publishes Twist commands in the local lenu reference frame. The values of the 
-        Twist command are set in self.vx, self.vy, self.vz and self.wx, self.wy, self.wz.
+        Continually publishes Twist commands in the local lenu reference frame.
         """
         # Create twist message for velocity setpoint represented in lenu coords
         velsp__lenu = Twist()

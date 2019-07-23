@@ -18,13 +18,12 @@ We recommend you start by copying code (and a launch file) from your open loop c
  1. Cruise forward until you are close enough to an AR tag (Intermediate and up), using P control to control your height
     * Send x velocities, y velocities and a height setpoint to the streaming thread
     * In the streaming thread, calculate z velocities using current height and height setpoint. Use a proportional controller.
- 2. Calculate the AR tag's height using the drone's height (accessible in `/mavros/local_position/pose`)
+ 2. Calculate the AR tag's height using the drone's height (accessible in `/mavros/local_position/pose`) and the height of the AR tag relative to the drone.
  3. Decide based on the height of the drone whether to go up or down.
     * Just change the height setpoint
  4. After a certain length of time, return to the default height
     * Use rospy.sleep(dur), NOT time.sleep(dur)
     * Reset the height setpoint to the default height
-
 
 ## Checkpoints
 

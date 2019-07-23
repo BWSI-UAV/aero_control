@@ -156,9 +156,6 @@ class LineController:
         
 
         '''TODO-END '''
-
-
-        ### DO NOT MODIFY ###
     
         # publish tracker commands to an image that can be visualized on
         # a camera feed

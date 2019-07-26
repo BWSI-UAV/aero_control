@@ -118,12 +118,21 @@ class ObstacleAvoid:
                 return
             '''
             TODO-START
-            Add proportional controller for height, coordinate frame changes, and 
-            publishing here.
+            Add proportional controller for height, coordinate frame changes
             '''
             raise NotImplementedError("CODE IMCOMPLETE! Replace with your own code")
             
             ''' TODO-END '''
+
+            # enforce safe velocity limits
+            if _MAX_SPEED < 0.0 or _MAX_CLIMB_RATE < 0.0:
+                raise Exception("_MAX_SPEED and _MAX_CLIMB_RATE must be positive")
+            velsp__lenu.linear.x = min(max(velsp__lenu.linear.x,-_MAX_SPEED), _MAX_SPEED)
+            velsp__lenu.linear.y = min(max(velsp__lenu.linear.y,-_MAX_SPEED), _MAX_SPEED)
+            velsp__lenu.linear.z = min(max(velsp__lenu.linear.z,-_MAX_CLIMB_RATE), _MAX_CLIMB_RATE)
+
+            # Publish setpoint velocity
+            self.velocity_pub.publish(velsp__lenu)
 
             # Publish velocity at the specified rate
             self.rate.sleep()

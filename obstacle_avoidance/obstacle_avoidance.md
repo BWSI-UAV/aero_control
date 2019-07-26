@@ -15,7 +15,7 @@ Integrate this code with your line follower so, instead of simply going forward 
 ### Code steps:
 We recommend you start by copying code (and a launch file) from your open loop controller.
 
- 1. Cruise forward until you are close enough to an AR tag (Intermediate and up), using P control to control your height
+ 1. Cruise forward until you are close enough to an AR tag, using P control to control your height
     * Send x velocities, y velocities and a height setpoint to the streaming thread
     * In the streaming thread, calculate z velocities using current height and height setpoint. Use a proportional controller.
  2. Calculate the AR tag's height using the drone's height (accessible in `/mavros/local_position/pose`) and the height of the AR tag relative to the drone.
